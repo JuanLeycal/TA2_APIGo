@@ -13,7 +13,11 @@ import (
 	"github.com/rs/cors"
 )
 
+var dataU = [][]string{}
+
 var jsondata = []byte{}
+var jsonKKN1 = []byte{}
+var jsonKKN2 = []byte{}
 
 type Afiliado struct {
 	FECHA_CORTE            string `json:"fecha_corte"`
@@ -38,15 +42,80 @@ type Afiliado struct {
 	TOTAL_AFILIADOS        string `json:"total_afiliados"`
 }
 
+type KKMean1 struct {
+	REGION         string `json:"region"`
+	PLAN_DE_SEGURO string `json:"plan_de_seguro"`
+}
+type KKMean2 struct {
+	TOTAL_AFILIADOS string `json:"region"`
+	EDAD            string `json:"plan_de_seguro"`
+}
+
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome the my GO API!")
 }
 
-func ArticleHandler(w http.ResponseWriter, r *http.Request) {
+func KKMeans(w http.ResponseWriter, r *http.Request) {
+	ref := mux.Vars(r)
+	ref1 := ref["indice1"]
+	ref2 := ref["indice2"]
+	var grupo KKMean1
+	var grupos []KKMean1
+	var grupo2 KKMean2
+	var grupos2 []KKMean2
 
+	if ref1 == "region" && ref2 == "plan" {
+		regionIndex := 1
+		planIndex := 17
+		for _, each := range dataU {
+			// region := each[regionIndex]
+			// plan := each[planIndex]
+			// fmt.Println(region, plan)
+			grupo.REGION = each[regionIndex]
+			grupo.PLAN_DE_SEGURO = each[planIndex]
+
+			grupos = append(grupos, grupo)
+		}
+		jsonKKN1, _ = json.Marshal(grupos)
+
+		b, _ := ioutil.ReadFile(string(jsonKKN1))
+
+		rawIn := json.RawMessage(string(b))
+		var objmap map[string]*json.RawMessage
+		err := json.Unmarshal(rawIn, &objmap)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Fprintf(w, string(jsonKKN1))
+	}
+	if ref1 == "afiliados" && ref2 == "edad" {
+		afilIndex := 19
+		edadIndex := 14
+		for _, each := range dataU {
+			// region := each[regionIndex]
+			// plan := each[planIndex]
+			// fmt.Println(region, plan)
+			grupo2.TOTAL_AFILIADOS = each[afilIndex]
+			grupo2.EDAD = each[edadIndex]
+
+			grupos2 = append(grupos2, grupo2)
+		}
+		jsonKKN2, _ = json.Marshal(grupos2)
+
+		b, _ := ioutil.ReadFile(string(jsonKKN2))
+
+		rawIn := json.RawMessage(string(b))
+		var objmap map[string]*json.RawMessage
+		err := json.Unmarshal(rawIn, &objmap)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Fprintf(w, string(jsonKKN2))
+
+	}
 }
 
-func Products(w http.ResponseWriter, r *http.Request) {
+func AllData(w http.ResponseWriter, r *http.Request) {
 
 	///response := Country{Name: "Perú", Capital: "Lima"}
 
@@ -79,6 +148,7 @@ func main() {
 	reader := csv.NewReader(csvFile)
 	reader.FieldsPerRecord = -1
 	csvData, erro := reader.ReadAll()
+	dataU = csvData
 
 	if erro != nil {
 		fmt.Println(erro)
@@ -87,6 +157,8 @@ func main() {
 
 	var oneRecord Afiliado
 	var allRecords []Afiliado
+
+	fmt.Println(dataU)
 
 	for _, each := range csvData {
 		oneRecord.FECHA_CORTE = each[0]
@@ -126,7 +198,8 @@ func main() {
 	}
 	// sanity check
 	// NOTE : You can stream the JSON data to http service as well instead of saving to file
-	fmt.Println(string(jsondata))
+
+	//fmt.Println(string(jsondata))
 
 	// now write to JSON file
 
@@ -143,8 +216,8 @@ func main() {
 	handler := c.Handler(r)
 
 	r.HandleFunc("/", HomeHandler)
-	r.HandleFunc("/json", Products).Methods("GET")
-	r.HandleFunc("/", ArticleHandler)
+	r.HandleFunc("/json", AllData).Methods("GET")
+	r.HandleFunc("/json/{indice1}/{indice2}", KKMeans).Methods("GET")
 
 	log.Fatal(http.ListenAndServe(":3000", handler))
 
