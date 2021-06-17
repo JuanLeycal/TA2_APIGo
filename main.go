@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"sort"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -47,71 +50,77 @@ type KKMean1 struct {
 	PLAN_DE_SEGURO string `json:"plan_de_seguro"`
 }
 type KKMean2 struct {
-	TOTAL_AFILIADOS string `json:"region"`
-	EDAD            string `json:"plan_de_seguro"`
+	X                int    `json:"edad"`
+	Y                int    `json:"total_afiliados"`
+	GroupId          int    `json:"group_id"`
+	Unidad_ejecutora string `json:"unidad_ejecutora"`
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome the my GO API!")
 }
 
+func distance(p KKMean2, p2 KKMean2) float64 {
+	first := math.Pow(float64(p2.X-p.X), 2)
+	second := math.Pow(float64(p2.Y-p.Y), 2)
+	return math.Sqrt(first + second)
+}
+
 func KKMeans(w http.ResponseWriter, r *http.Request) {
 	ref := mux.Vars(r)
 	ref1 := ref["indice1"]
 	ref2 := ref["indice2"]
-	var grupo KKMean1
-	var grupos []KKMean1
-	var grupo2 KKMean2
-	var grupos2 []KKMean2
-
-	if ref1 == "region" && ref2 == "plan" {
-		regionIndex := 1
-		planIndex := 17
-		for _, each := range dataU {
-			// region := each[regionIndex]
-			// plan := each[planIndex]
-			// fmt.Println(region, plan)
-			grupo.REGION = each[regionIndex]
-			grupo.PLAN_DE_SEGURO = each[planIndex]
-
-			grupos = append(grupos, grupo)
-		}
-		jsonKKN1, _ = json.Marshal(grupos)
-
-		b, _ := ioutil.ReadFile(string(jsonKKN1))
-
-		rawIn := json.RawMessage(string(b))
-		var objmap map[string]*json.RawMessage
-		err := json.Unmarshal(rawIn, &objmap)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Fprintf(w, string(jsonKKN1))
-	}
+	variables := []KKMean2{}
+	//groupId := 0
+	// if ref1 == "region" && ref2 == "plan" {
+	// }
 	if ref1 == "afiliados" && ref2 == "edad" {
 		afilIndex := 19
 		edadIndex := 14
 		for _, each := range dataU {
-			// region := each[regionIndex]
-			// plan := each[planIndex]
-			// fmt.Println(region, plan)
-			grupo2.TOTAL_AFILIADOS = each[afilIndex]
-			grupo2.EDAD = each[edadIndex]
-
-			grupos2 = append(grupos2, grupo2)
+			x, _ := strconv.Atoi(each[edadIndex])
+			y, _ := strconv.Atoi(each[afilIndex])
+			// edad := each[edadIndex]
+			// afiliados := each[afilIndex]
+			punto := KKMean2{
+				X:                x,
+				Y:                y,
+				Unidad_ejecutora: each[6],
+			}
+			variables = append(variables, punto)
 		}
-		jsonKKN2, _ = json.Marshal(grupos2)
-
-		b, _ := ioutil.ReadFile(string(jsonKKN2))
-
-		rawIn := json.RawMessage(string(b))
-		var objmap map[string]*json.RawMessage
-		err := json.Unmarshal(rawIn, &objmap)
-		if err != nil {
-			fmt.Println(err)
+		variables = variables[1:]
+		sort.SliceStable(variables, func(i, j int) bool {
+			return variables[i].X < variables[j].X
+		})
+		fmt.Println(variables)
+		//var distancias []int
+		//KKGroups := []KKMean2{}
+		groupContr := 1
+		sumDist := 0
+		variables[0].GroupId = groupContr
+		for i := 0; i < len(variables)-1; i++ {
+			dist := distance(variables[i], variables[i+1])
+			sumDist += int(dist)
 		}
-		fmt.Fprintf(w, string(jsonKKN2))
+		promedio := sumDist / len(variables)
+		fmt.Println(promedio)
+		for i := 0; i < len(variables)-1; i++ {
+			dist := distance(variables[i], variables[i+1])
+			if dist > float64(promedio) {
+				groupContr++
+				//KKGroups = append(KKGroups, variables[i+1])
+			}
+			variables[i+1].GroupId = groupContr
+			//distancias = append(distancias, int(dist))
+		}
+		for _, each := range variables {
+			fmt.Println(each.GroupId)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(variables)
 
+		//fmt.Println(distancias)
 	}
 }
 
@@ -199,7 +208,7 @@ func main() {
 	// sanity check
 	// NOTE : You can stream the JSON data to http service as well instead of saving to file
 
-	//fmt.Println(string(jsondata))
+	fmt.Println(string(jsondata))
 
 	// now write to JSON file
 
