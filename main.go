@@ -47,10 +47,27 @@ type Afiliado struct {
 }
 
 type KMean struct {
-	X                int    `json:"edad"`
-	Y                int    `json:"total_afiliados"`
-	GroupId          int    `json:"group_id"`
-	Unidad_ejecutora string `json:"unidad_ejecutora"`
+	X                      int    `json:"edad"`
+	Y                      int    `json:"total_afiliados"`
+	GroupId                int    `json:"group_id"`
+	FECHA_CORTE            string `json:"fecha_corte"`
+	REGION                 string `json:"region"`
+	PROVINCIA              string `json:"provincia"`
+	DISTRITO               string `json:"distrito"`
+	UBIGEO                 string `json:"ubigeo"`
+	COD_UNIDAD_EJECUTORA   string `json:"cod_unidad_ejecutora"`
+	Unidad_ejecutora       string `json:"unidad_ejecutora"`
+	AMBITO_INEI            string `json:"ambito_inei"`
+	CODIGO_IPRESS          string `json:"codigo_ipress"`
+	IPRESS                 string `json:"ipress"`
+	VRAEM                  string `json:"vraem"`
+	NACIONAL_EXTRANJERO    string `json:"nacional_extranjero"`
+	PAIS_EXTRANJERO        string `json:"pais_extranjero"`
+	DOCUMENTO_IDENTIDAD    string `json:"documento_identidad"`
+	SEXO                   string `json:"sexo"`
+	REGIMEN_FINANCIAMIENTO string `json:"regimen_financiamiento"`
+	PLAN_DE_SEGURO         string `json:"plan_de_seguro"`
+	COBERTURA_FINANCIERA   string `json:"cobertura_financiera"`
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
@@ -84,9 +101,26 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			// edad := each[edadIndex]
 			// afiliados := each[afilIndex]
 			punto := KMean{
-				X:                x,
-				Y:                y,
-				Unidad_ejecutora: each[6],
+				X:                      x,
+				Y:                      y,
+				FECHA_CORTE:            each[0],
+				REGION:                 each[1],
+				PROVINCIA:              each[2],
+				DISTRITO:               each[3],
+				UBIGEO:                 each[4],
+				COD_UNIDAD_EJECUTORA:   each[5],
+				Unidad_ejecutora:       each[6],
+				AMBITO_INEI:            each[7],
+				CODIGO_IPRESS:          each[8],
+				IPRESS:                 each[9],
+				VRAEM:                  each[10],
+				NACIONAL_EXTRANJERO:    each[11],
+				PAIS_EXTRANJERO:        each[12],
+				DOCUMENTO_IDENTIDAD:    each[13],
+				SEXO:                   each[15],
+				REGIMEN_FINANCIAMIENTO: each[16],
+				PLAN_DE_SEGURO:         each[17],
+				COBERTURA_FINANCIERA:   each[18],
 			}
 			variables = append(variables, punto)
 		}
@@ -107,7 +141,7 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 		//fmt.Println(Centroids)
 		//hora de comparar
 
-		for i := 0; i < len(variables)-1; i++ {
+		for i := 0; i < len(variables); i++ {
 			aux := 10000
 			for j := 0; j < len(Centroids); j++ {
 				if distance(variables[i], Centroids[j]) < aux && variables[i].GroupId == 0 {
@@ -124,7 +158,7 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			for j := 0; j < k; j++ {
 				aux := 0
 				newCluster := KMean{}
-				for i := 0; i < len(variables)-1; i++ {
+				for i := 0; i < len(variables); i++ {
 					if variables[i].GroupId == j+1 {
 						newCluster.X += variables[i].X
 						newCluster.Y += variables[i].Y
@@ -139,7 +173,7 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			// fmt.Print(Centroids)
 			// fmt.Print(newClusters)
 
-			for i := 0; i < len(variables)-1; i++ {
+			for i := 0; i < len(variables); i++ {
 				aux := 10000
 				for j := 0; j < len(newClusters); j++ {
 					if distance(variables[i], newClusters[j]) < aux {
@@ -151,9 +185,9 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
-		jsondata, _ = json.Marshal(variables)
+		jsonKMean2, _ = json.Marshal(variables)
 
-		b, _ := ioutil.ReadFile(string(jsondata))
+		b, _ := ioutil.ReadFile(string(jsonKMean2))
 
 		rawIn := json.RawMessage(string(b))
 		var objmap map[string]*json.RawMessage
@@ -161,7 +195,7 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Fprintf(w, string(jsondata))
+		fmt.Fprintf(w, string(jsonKMean2))
 
 	}
 }
