@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -19,8 +21,7 @@ import (
 var dataU = [][]string{}
 
 var jsondata = []byte{}
-var jsonKKN1 = []byte{}
-var jsonKKN2 = []byte{}
+var jsonKMean2 = []byte{}
 
 type Afiliado struct {
 	FECHA_CORTE            string `json:"fecha_corte"`
@@ -45,11 +46,7 @@ type Afiliado struct {
 	TOTAL_AFILIADOS        string `json:"total_afiliados"`
 }
 
-type KKMean1 struct {
-	REGION         string `json:"region"`
-	PLAN_DE_SEGURO string `json:"plan_de_seguro"`
-}
-type KKMean2 struct {
+type KMean struct {
 	X                int    `json:"edad"`
 	Y                int    `json:"total_afiliados"`
 	GroupId          int    `json:"group_id"`
@@ -60,18 +57,22 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome the my GO API!")
 }
 
-func distance(p KKMean2, p2 KKMean2) float64 {
+func distance(p KMean, p2 KMean) int {
 	first := math.Pow(float64(p2.X-p.X), 2)
 	second := math.Pow(float64(p2.Y-p.Y), 2)
-	return math.Sqrt(first + second)
+	final := math.Sqrt(first + second)
+	var dist int = int(final)
+	return dist
 }
 
-func KKMeans(w http.ResponseWriter, r *http.Request) {
+func KMeans(w http.ResponseWriter, r *http.Request) {
+
+	rand.Seed(time.Now().UnixNano())
+
 	ref := mux.Vars(r)
 	ref1 := ref["indice1"]
 	ref2 := ref["indice2"]
-	variables := []KKMean2{}
-	//groupId := 0
+	variables := []KMean{}
 	// if ref1 == "region" && ref2 == "plan" {
 	// }
 	if ref1 == "afiliados" && ref2 == "edad" {
@@ -82,7 +83,7 @@ func KKMeans(w http.ResponseWriter, r *http.Request) {
 			y, _ := strconv.Atoi(each[afilIndex])
 			// edad := each[edadIndex]
 			// afiliados := each[afilIndex]
-			punto := KKMean2{
+			punto := KMean{
 				X:                x,
 				Y:                y,
 				Unidad_ejecutora: each[6],
@@ -93,34 +94,75 @@ func KKMeans(w http.ResponseWriter, r *http.Request) {
 		sort.SliceStable(variables, func(i, j int) bool {
 			return variables[i].X < variables[j].X
 		})
-		fmt.Println(variables)
-		//var distancias []int
-		//KKGroups := []KKMean2{}
-		groupContr := 1
-		sumDist := 0
-		variables[0].GroupId = groupContr
-		for i := 0; i < len(variables)-1; i++ {
-			dist := distance(variables[i], variables[i+1])
-			sumDist += int(dist)
+		//fmt.Println(variables)
+		//numero de clusters
+		k := 3
+		Centroids := []KMean{}
+		for j := 0; j < k; j++ {
+			i := rand.Intn(len(variables))
+			fmt.Println(i)
+			variables[i].GroupId = j + 1
+			Centroids = append(Centroids, variables[i])
 		}
-		promedio := sumDist / len(variables)
-		fmt.Println(promedio)
-		for i := 0; i < len(variables)-1; i++ {
-			dist := distance(variables[i], variables[i+1])
-			if dist > float64(promedio) {
-				groupContr++
-				//KKGroups = append(KKGroups, variables[i+1])
-			}
-			variables[i+1].GroupId = groupContr
-			//distancias = append(distancias, int(dist))
-		}
-		for _, each := range variables {
-			fmt.Println(each.GroupId)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(variables)
+		//fmt.Println(Centroids)
+		//hora de comparar
 
-		//fmt.Println(distancias)
+		for i := 0; i < len(variables)-1; i++ {
+			aux := 10000
+			for j := 0; j < len(Centroids); j++ {
+				if distance(variables[i], Centroids[j]) < aux && variables[i].GroupId == 0 {
+					aux = distance(variables[i], Centroids[j])
+
+					variables[i].GroupId = Centroids[j].GroupId
+				}
+			}
+			//fmt.Print(i, "->", variables[i].GroupId, "- ")
+		}
+
+		for a := 0; a < 14; a++ {
+			newClusters := []KMean{}
+			for j := 0; j < k; j++ {
+				aux := 0
+				newCluster := KMean{}
+				for i := 0; i < len(variables)-1; i++ {
+					if variables[i].GroupId == j+1 {
+						newCluster.X += variables[i].X
+						newCluster.Y += variables[i].Y
+						aux++
+					}
+				}
+				newCluster.X = newCluster.X / aux
+				newCluster.Y = newCluster.Y / aux
+				newCluster.GroupId = j + 1
+				newClusters = append(newClusters, newCluster)
+			}
+			// fmt.Print(Centroids)
+			// fmt.Print(newClusters)
+
+			for i := 0; i < len(variables)-1; i++ {
+				aux := 10000
+				for j := 0; j < len(newClusters); j++ {
+					if distance(variables[i], newClusters[j]) < aux {
+						aux = distance(variables[i], newClusters[j])
+						variables[i].GroupId = newClusters[j].GroupId
+					}
+				}
+				fmt.Print(i, "->", variables[i].GroupId, "- ")
+			}
+
+		}
+		jsondata, _ = json.Marshal(variables)
+
+		b, _ := ioutil.ReadFile(string(jsondata))
+
+		rawIn := json.RawMessage(string(b))
+		var objmap map[string]*json.RawMessage
+		err := json.Unmarshal(rawIn, &objmap)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Fprintf(w, string(jsondata))
+
 	}
 }
 
@@ -226,7 +268,7 @@ func main() {
 
 	r.HandleFunc("/", HomeHandler)
 	r.HandleFunc("/json", AllData).Methods("GET")
-	r.HandleFunc("/json/{indice1}/{indice2}", KKMeans).Methods("GET")
+	r.HandleFunc("/json/{indice1}/{indice2}", KMeans).Methods("GET")
 
 	log.Fatal(http.ListenAndServe(":3000", handler))
 
