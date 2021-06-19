@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"time"
 
@@ -74,6 +73,61 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome the my GO API!")
 }
 
+// Función sacada de: https://www.programmersought.com/article/68147159147/ , adaptada a arrays de structs
+func parallelSort(elem []KMean, ch chan KMean, nivel int, hilo int) {
+
+	nivel = nivel * 2
+
+	//Validar en caso de array con un elemento, mandar sólo el elem[0] al canal
+	if len(elem) == 1 {
+		ch <- elem[0]
+		close(ch)
+		return
+	}
+	//Validar en caso de array sin elementos, cerrar de frente el canal
+	if len(elem) == 0 {
+		close(ch)
+		return
+	}
+	//Casos cuando hay más de un elemento en el array
+	menor := make([]KMean, 0) //Canal
+	mayor := make([]KMean, 0)
+	eje := elem[0] //Usado como eje para definir a que slice van los elem
+	elem = elem[1:]
+
+	//Leer de izquierda a derecha, y poner los elementos mayores que el eje en "mayor" y los menores en "menor"
+	for _, num_data := range elem {
+		switch {
+		case num_data.X <= eje.X:
+			menor = append(menor, num_data)
+		case num_data.X > eje.X:
+			mayor = append(mayor, num_data)
+		}
+	}
+
+	left_ch := make(chan KMean, len(menor))
+	right_ch := make(chan KMean, len(mayor))
+
+	if nivel <= hilo {
+		//inicio de la iteración concurrente
+		go parallelSort(menor, left_ch, nivel, hilo)
+		go parallelSort(mayor, right_ch, nivel, hilo)
+	} else {
+		parallelSort(menor, left_ch, nivel, hilo)
+		parallelSort(mayor, right_ch, nivel, hilo)
+	}
+
+	for i := range left_ch {
+		ch <- i
+	}
+	ch <- eje
+	for i := range right_ch {
+		ch <- i
+	}
+	close(ch)
+	return
+}
+
 func distance(p KMean, p2 KMean) int {
 	first := math.Pow(float64(p2.X-p.X), 2)
 	second := math.Pow(float64(p2.Y-p.Y), 2)
@@ -125,12 +179,30 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			variables = append(variables, punto)
 		}
 		variables = variables[1:]
-		sort.SliceStable(variables, func(i, j int) bool {
-			return variables[i].X < variables[j].X
-		})
+
+		//Sorting paralelo para mejor posición de los elementos
+		ch := make(chan KMean)
+		go parallelSort(variables, ch, 0, 0)
+
+		ordenado := []KMean{}
+		for v := range ch {
+			fmt.Println(v)
+			ordenado = append(ordenado, v)
+		}
+		//fmt.Println(len(ordenado))
+
+		//Se sobreescribe el array original con el ordenado
+		variables := ordenado
+
+		//Sort no Concurrente
+		// sort.SliceStable(variables, func(i, j int) bool {
+		// 	return variables[i].X < variables[j].X
+		// })
+
 		//fmt.Println(variables)
-		//numero de clusters
-		k := 3
+
+		//numero de clusters (cambiar k no corrompe el algoritmo)
+		k := 5
 		Centroids := []KMean{}
 		for j := 0; j < k; j++ {
 			i := rand.Intn(len(variables))
@@ -138,8 +210,9 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			variables[i].GroupId = j + 1
 			Centroids = append(Centroids, variables[i])
 		}
-		//fmt.Println(Centroids)
-		//hora de comparar
+		fmt.Println(Centroids)
+
+		//hora de comparar por 1ra vez
 
 		for i := 0; i < len(variables); i++ {
 			aux := 10000
@@ -152,8 +225,10 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 			}
 			//fmt.Print(i, "->", variables[i].GroupId, "- ")
 		}
-
-		for a := 0; a < 14; a++ {
+		iteracion := 14
+		//Se realiza la selección de nuevos centroides y empezar la distribución de grupos otra vez
+		for a := 0; a < iteracion; a++ {
+			fmt.Println("iteración ", a+1)
 			newClusters := []KMean{}
 			for j := 0; j < k; j++ {
 				aux := 0
@@ -170,8 +245,6 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 				newCluster.GroupId = j + 1
 				newClusters = append(newClusters, newCluster)
 			}
-			// fmt.Print(Centroids)
-			// fmt.Print(newClusters)
 
 			for i := 0; i < len(variables); i++ {
 				aux := 10000
@@ -181,10 +254,12 @@ func KMeans(w http.ResponseWriter, r *http.Request) {
 						variables[i].GroupId = newClusters[j].GroupId
 					}
 				}
-				fmt.Print(i, "->", variables[i].GroupId, "- ")
+				fmt.Print("elemento [", i, "]->Cluster ", variables[i].GroupId, "  ")
 			}
 
 		}
+
+		//Convierte el array conseguido en JSON para la API
 		jsonKMean2, _ = json.Marshal(variables)
 
 		b, _ := ioutil.ReadFile(string(jsonKMean2))
@@ -284,7 +359,7 @@ func main() {
 	// sanity check
 	// NOTE : You can stream the JSON data to http service as well instead of saving to file
 
-	fmt.Println(string(jsondata))
+	//fmt.Println(string(jsondata))
 
 	// now write to JSON file
 
